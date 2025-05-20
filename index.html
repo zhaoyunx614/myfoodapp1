@@ -41,7 +41,7 @@
   <main class="flex flex-col md:flex-row flex-1 overflow-hidden">
    <div class="relative" id="map">
    </div>
-   <section class="bg-white rounded-t-xl md:rounded-none md:rounded-l-xl md:w-2/5 h-[60vh] md:h-full overflow-y-auto shadow-inner relative">
+   <section class="bg-white rounded-t-xl md:rounded-none md:rounded-l-xl md:w-2/5 h-[60vh] md:h-full overflow-y-auto shadow-inner relative flex flex-col">
     <div class="flex justify-between items-center border-b border-gray-300 px-4 py-3 sticky top-0 bg-white z-20">
      <h2 class="text-lg font-semibold">
       My Destinations
@@ -67,15 +67,32 @@
       Add your first destination by tapping the + button
      </p>
     </div>
-    <ul class="location-list divide-y divide-gray-200" id="locationList">
+    <ul class="location-list divide-y divide-gray-200 flex-1 overflow-y-auto" id="locationList">
     </ul>
+    <div class="border-t border-gray-300 mt-4">
+      <h2 class="text-lg font-semibold px-4 py-3 bg-gray-50 sticky top-[calc(60vh)] z-10">
+        Explored
+      </h2>
+      <ul class="location-list divide-y divide-gray-200 max-h-[calc(40vh-3rem)] overflow-y-auto" id="exploredList">
+      </ul>
+      <div class="flex flex-col items-center justify-center p-8 text-gray-400 hidden" id="emptyExploredState">
+       <i class="fas fa-check-circle text-6xl mb-4 opacity-50">
+       </i>
+       <h3 class="text-xl font-semibold mb-2">
+        No explored destinations yet
+       </h3>
+       <p class="text-center max-w-xs">
+        Mark destinations as visited to see them here
+       </p>
+      </div>
+    </div>
    </section>
   </main>
   <!-- Add Location Modal -->
   <div aria-labelledby="addLocationTitle" aria-modal="true" class="fixed inset-0 bg-black bg-opacity-50 hidden justify-center items-center z-50 p-4" id="addLocationModal" role="dialog">
    <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 flex flex-col">
     <header class="flex justify-between items-center border-b border-gray-300 pb-3 mb-4">
-     <h3 class="text-lg font-semibold" id="addLocationTitle">
+     <h3 class="text-lg font-semibold modal-title" id="addLocationTitle">
       Add New Destination
      </h3>
      <button aria-label="Close add location modal" class="text-2xl font-bold text-gray-600 hover:text-gray-900" data-dismiss="modal">
@@ -121,13 +138,16 @@
        Image
       </label>
       <div aria-label="Add image preview, click to upload" class="w-full h-36 border-2 border-dashed border-gray-300 rounded-lg flex flex-col justify-center items-center cursor-pointer overflow-hidden relative" id="imagePreview" role="button" tabindex="0">
-       <div class="flex flex-col items-center text-gray-400 text-sm select-none">
+       <div class="flex flex-col items-center text-gray-400 text-sm select-none" id="imagePreviewContent">
         <i class="fas fa-image text-3xl mb-1">
         </i>
         <span>
          Tap to add image
         </span>
        </div>
+       <button type="button" id="removeImageButton" class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity" aria-label="Remove image">
+        <i class="fas fa-times text-xs"></i>
+       </button>
       </div>
       <input accept="image/*" aria-hidden="true" class="hidden" id="fileInput" type="file"/>
      </div>
@@ -330,12 +350,16 @@
 
       // DOM Elements
       const locationList = document.getElementById("locationList");
+      const exploredList = document.getElementById("exploredList");
       const emptyState = document.getElementById("emptyState");
+      const emptyExploredState = document.getElementById("emptyExploredState");
       const addLocationModal = document.getElementById("addLocationModal");
       const locationDetailModal = document.getElementById("locationDetailModal");
       const shareModal = document.getElementById("shareModal");
       const locationForm = document.getElementById("locationForm");
       const imagePreview = document.getElementById("imagePreview");
+      const imagePreviewContent = document.getElementById("imagePreviewContent");
+      const removeImageButton = document.getElementById("removeImageButton");
       const fileInput = document.getElementById("fileInput");
       const editButton = document.getElementById("editButton");
       const doneButton = document.getElementById("doneButton");
@@ -370,15 +394,13 @@
           updateMapMarkers();
         }
 
-        emptyState.style.display = locations.length > 0 ? "none" : "flex";
-        locationList.style.display = locations.length > 0 ? "block" : "none";
+        updateEmptyStates();
       }
 
       // Save locations to localStorage
       function saveLocations() {
         localStorage.setItem("mapDestinations", JSON.stringify(locations));
-        emptyState.style.display = locations.length > 0 ? "none" : "flex";
-        locationList.style.display = locations.length > 0 ? "block" : "none";
+        updateEmptyStates();
       }
 
       // Save visited history to localStorage
@@ -431,12 +453,25 @@
         }
       }
 
-      // Update locations list in UI
+      // Update empty states visibility
+      function updateEmptyStates() {
+        const hasUnvisited = locations.some(loc => !loc.visited);
+        const hasVisited = locations.some(loc => loc.visited);
+
+        emptyState.style.display = hasUnvisited ? "none" : "flex";
+        locationList.style.display = hasUnvisited ? "block" : "none";
+
+        emptyExploredState.style.display = hasVisited ? "none" : "flex";
+        exploredList.style.display = hasVisited ? "block" : "none";
+      }
+
+      // Update locations list in UI (split into unvisited and visited)
       function updateLocationsList() {
         updateDistances();
         saveLocations();
 
         locationList.innerHTML = "";
+        exploredList.innerHTML = "";
 
         locations.forEach((location, index) => {
           const li = document.createElement("li");
@@ -495,6 +530,8 @@
               location.visited = e.target.checked;
               saveLocations();
               saveVisitedHistory();
+              updateLocationsList();
+              updateMapMarkers();
             });
           } else {
             li.innerHTML = `
@@ -510,7 +547,7 @@
                 </a>
                 <div class="text-gray-400 text-xs mt-1">${distanceText ? `Distance from previous: ${distanceText}` : ""}</div>
               </div>
-              <div class="location-actions flex-shrink-0 ml-4">
+              <div class="location-actions flex-shrink-0 mr-4">
                 <button class="icon-button text-gray-600 hover:text-gray-800" aria-label="Options for ${location.name}" data-id="${location.id}">
                   <i class="fas fa-ellipsis-v"></i>
                 </button>
@@ -529,6 +566,8 @@
               location.visited = e.target.checked;
               saveLocations();
               saveVisitedHistory();
+              updateLocationsList();
+              updateMapMarkers();
             });
           }
 
@@ -543,8 +582,14 @@
             showLocationDetails(location.id);
           });
 
-          locationList.appendChild(li);
+          if (location.visited) {
+            exploredList.appendChild(li);
+          } else {
+            locationList.appendChild(li);
+          }
         });
+
+        updateEmptyStates();
       }
 
       // Update map markers
@@ -580,10 +625,12 @@
           editButton.classList.add("hidden");
           document.querySelector(".edit-buttons").classList.remove("hidden");
           locationList.classList.add("edit-mode");
+          exploredList.classList.add("edit-mode");
         } else {
           editButton.classList.remove("hidden");
           document.querySelector(".edit-buttons").classList.add("hidden");
           locationList.classList.remove("edit-mode");
+          exploredList.classList.remove("edit-mode");
         }
 
         updateLocationsList();
@@ -592,8 +639,11 @@
       // Show menu for location
       function showMenu(event, locationId) {
         const rect = event.target.getBoundingClientRect();
+        const menuWidth = 176; // approx width of menuPanel (w-44 = 11rem = 176px)
+        let leftPos = rect.left + window.scrollX - menuWidth - 5;
+        if (leftPos < 0) leftPos = 5; // prevent offscreen left
         menuPanel.style.top = `${rect.bottom + window.scrollY + 5}px`;
-        menuPanel.style.left = `${rect.left + window.scrollX}px`;
+        menuPanel.style.left = `${leftPos}px`;
         menuPanel.style.display = "block";
         selectedLocationId = locationId;
 
@@ -724,12 +774,7 @@
         if (modal === addLocationModal) {
           locationForm.reset();
           imageBase64 = null;
-          imagePreview.innerHTML = `
-            <div class="flex flex-col items-center text-gray-400 text-sm select-none">
-              <i class="fas fa-image text-3xl mb-1"></i>
-              <span>Tap to add image</span>
-            </div>
-          `;
+          resetImagePreview();
           // Clear coordinates and address fields
           inputLatitude.value = "";
           inputLongitude.value = "";
@@ -741,6 +786,7 @@
           }
           addLocationModal.querySelector(".modal-title").textContent =
             "Add New Destination";
+          selectedLocationId = null;
         }
       }
 
@@ -854,139 +900,12 @@
         syncCoordsToAddress();
       });
 
-      // Export locations as PDF
-      function exportAsPDF() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-
-        doc.setFontSize(18);
-        doc.text("My Destinations", 20, 20);
-
-        let y = 40;
-        locations.forEach((loc, index) => {
-          if (y > 250) {
-            doc.addPage();
-            y = 20;
-          }
-
-          doc.setFontSize(14);
-          doc.text(`${index + 1}. ${loc.name}`, 20, y);
-          y += 10;
-
-          doc.setFontSize(10);
-          doc.text(`Address: ${loc.address || "N/A"}`, 25, y);
-          y += 5;
-
-          if (loc.description) {
-            const descLines = doc.splitTextToSize(
-              `Description: ${loc.description}`,
-              160
-            );
-            descLines.forEach((line) => {
-              y += 5;
-              doc.text(line, 25, y);
-            });
-          }
-
-          doc.text(
-            `Coordinates: ${loc.latitude || "N/A"}, ${loc.longitude || "N/A"}`,
-            25,
-            y + 5
-          );
-          y += 10;
-
-          if (loc.workingHours) {
-            doc.text("Working Hours:", 25, y);
-            y += 7;
-            for (const [day, hours] of Object.entries(loc.workingHours)) {
-              doc.text(`  ${day}: ${hours || "Closed"}`, 30, y);
-              y += 7;
-              if (y > 250) {
-                doc.addPage();
-                y = 20;
-              }
-            }
-            y += 5;
-          } else {
-            y += 5;
-          }
-
-          if (loc.distanceFromPrevious != null) {
-            const distText =
-              loc.distanceFromPrevious < 1
-                ? `${(loc.distanceFromPrevious * 1000).toFixed(0)} m`
-                : `${loc.distanceFromPrevious.toFixed(2)} km`;
-            doc.text(`Distance from previous: ${distText}`, 25, y);
-            y += 10;
-          }
-
-          if (loc.visited) {
-            doc.text("Visited: Yes", 25, y);
-            y += 10;
-          }
-        });
-
-        doc.save("my-destinations.pdf");
-        closeModal(shareModal);
-        showToast("PDF exported successfully");
-      }
-
-      // Export locations as JSON
-      function exportAsJSON() {
-        const dataStr = JSON.stringify(locations, null, 2);
-        const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
-
-        const exportName = "my-destinations.json";
-
-        const linkElement = document.createElement("a");
-        linkElement.setAttribute("href", dataUri);
-        linkElement.setAttribute("download", exportName);
-        linkElement.click();
-
-        closeModal(shareModal);
-        showToast("JSON exported successfully");
-      }
-
-      // Export locations as text
-      function exportAsText() {
-        let text = "MY DESTINATIONS\n\n";
-
-        locations.forEach((loc, index) => {
-          text += `${index + 1}. ${loc.name}\n`;
-          text += `   Address: ${loc.address || "N/A"}\n`;
-          if (loc.description) {
-            text += `   Description: ${loc.description}\n`;
-          }
-          text += `   Coordinates: ${loc.latitude || "N/A"}, ${loc.longitude || "N/A"}\n`;
-          if (loc.workingHours) {
-            text += "   Working Hours:\n";
-            for (const [day, hours] of Object.entries(loc.workingHours)) {
-              text += `     ${day}: ${hours || "Closed"}\n`;
-            }
-          }
-          if (loc.distanceFromPrevious != null) {
-            const distText =
-              loc.distanceFromPrevious < 1
-                ? `${(loc.distanceFromPrevious * 1000).toFixed(0)} m`
-                : `${loc.distanceFromPrevious.toFixed(2)} km`;
-            text += `   Distance from previous: ${distText}\n`;
-          }
-          if (loc.visited) {
-            text += "   Visited: Yes\n";
-          }
-          text += "\n";
-        });
-
-        const dataUri = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
-        const exportName = "my-destinations.txt";
-
-        const linkElement = document.createElement("a");
-        linkElement.setAttribute("href", dataUri);
-        linkElement.setAttribute("download", exportName);
-        linkElement.click();
-
-        closeModal(shareModal);
-        showToast("Text exported successfully");
+      // Reset image preview to default state
+      function resetImagePreview() {
+        imageBase64 = null;
+        imagePreviewContent.style.display = "flex";
+        removeImageButton.style.opacity = "0";
+        imagePreview.querySelector("img")?.remove();
       }
 
       // File input change handler
@@ -1002,7 +921,15 @@
         const reader = new FileReader();
         reader.onload = function (e) {
           imageBase64 = e.target.result;
-          imagePreview.innerHTML = `<img src="${imageBase64}" alt="Preview image" class="w-full h-full object-cover rounded-lg" />`;
+          imagePreviewContent.style.display = "none";
+          removeImageButton.style.opacity = "1";
+          if (!imagePreview.querySelector("img")) {
+            const img = document.createElement("img");
+            img.className = "w-full h-full object-cover rounded-lg";
+            img.alt = "Preview image";
+            imagePreview.appendChild(img);
+          }
+          imagePreview.querySelector("img").src = imageBase64;
         };
         reader.readAsDataURL(file);
       });
@@ -1016,6 +943,13 @@
           e.preventDefault();
           fileInput.click();
         }
+      });
+
+      // Remove image button click handler
+      removeImageButton.addEventListener("click", function (e) {
+        e.stopPropagation();
+        resetImagePreview();
+        fileInput.value = "";
       });
 
       // Modal dismiss buttons
@@ -1106,7 +1040,7 @@
               longitude,
               workingHours,
               visited: visitedVal,
-              ...(imageBase64 ? { image: imageBase64 } : {}),
+              ...(imageBase64 !== null ? { image: imageBase64 } : {}),
             };
             showToast("Location updated successfully");
           }
@@ -1143,6 +1077,17 @@
         addLocationModal.style.display = "flex";
         addLocationModal.querySelector(".modal-title").textContent =
           "Add New Destination";
+        locationForm.reset();
+        resetImagePreview();
+        // Clear working hours inputs
+        for (const day in workingHoursInputs) {
+          workingHoursInputs[day].value = "";
+        }
+        visitedCheckbox.checked = false;
+        inputLatitude.value = "";
+        inputLongitude.value = "";
+        inputAddress.value = "";
+        imageBase64 = null;
       });
 
       // Edit and Done buttons toggle edit mode
@@ -1183,15 +1128,17 @@
 
         if (location.image) {
           imageBase64 = location.image;
-          imagePreview.innerHTML = `<img src="${location.image}" alt="Preview image" class="w-full h-full object-cover rounded-lg" />`;
+          imagePreviewContent.style.display = "none";
+          removeImageButton.style.opacity = "1";
+          if (!imagePreview.querySelector("img")) {
+            const img = document.createElement("img");
+            img.className = "w-full h-full object-cover rounded-lg";
+            img.alt = "Preview image";
+            imagePreview.appendChild(img);
+          }
+          imagePreview.querySelector("img").src = imageBase64;
         } else {
-          imageBase64 = null;
-          imagePreview.innerHTML = `
-            <div class="flex flex-col items-center text-gray-400 text-sm select-none">
-              <i class="fas fa-image text-3xl mb-1"></i>
-              <span>Tap to add image</span>
-            </div>
-          `;
+          resetImagePreview();
         }
 
         addLocationModal.querySelector(".modal-title").textContent = "Edit Destination";
@@ -1247,9 +1194,15 @@
           draggedItem = null;
           // After drag end, update order and distances
           const list = document.getElementById("locationList");
-          const newOrder = Array.from(list.querySelectorAll(".location-item")).map(
+          const explored = document.getElementById("exploredList");
+          const combinedItems = [
+            ...list.querySelectorAll(".location-item"),
+            ...explored.querySelectorAll(".location-item"),
+          ];
+          const newOrder = Array.from(combinedItems).map(
             (item) => item.dataset.id
           );
+          // Reorder locations array according to new order
           locations = newOrder.map((id) => locations.find((loc) => loc.id === id));
           updateDistances();
           saveLocations();
@@ -1263,19 +1216,31 @@
           if (!editMode || !draggedItem) return;
 
           const list = document.getElementById("locationList");
-          const listItems = Array.from(
-            list.querySelectorAll(".location-item:not(.opacity-70)")
-          );
+          const explored = document.getElementById("exploredList");
+          const allItems = [
+            ...list.querySelectorAll(".location-item:not(.opacity-70)"),
+            ...explored.querySelectorAll(".location-item:not(.opacity-70)"),
+          ];
 
-          const targetItem = listItems.find((item) => {
+          // Find the closest item below the cursor
+          let targetItem = null;
+          for (const item of allItems) {
             const rect = item.getBoundingClientRect();
-            return e.clientY < rect.bottom;
-          });
+            if (e.clientY < rect.bottom) {
+              targetItem = item;
+              break;
+            }
+          }
 
           if (targetItem) {
-            list.insertBefore(draggedItem, targetItem);
+            if (targetItem.parentElement === list || targetItem.parentElement === explored) {
+              targetItem.parentElement.insertBefore(draggedItem, targetItem);
+            }
           } else {
-            list.appendChild(draggedItem);
+            // Append to the end of the list where draggedItem currently is
+            if (draggedItem.parentElement) {
+              draggedItem.parentElement.appendChild(draggedItem);
+            }
           }
         });
       }
