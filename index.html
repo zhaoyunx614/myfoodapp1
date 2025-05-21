@@ -430,7 +430,7 @@
       <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationAddress">
        Address
       </label>
-      <input autocomplete="off" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationAddress" placeholder="e.g. 123 Main St, City, Country" type="text"/>
+      <input autocomplete="off" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationAddress" placeholder="e.g. 123 Main St, City, Country" type="text" />
      </div>
      <div>
       <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationLatitude">
@@ -628,6 +628,25 @@
         }
       ).addTo(map);
 
+      // Blue and green marker icons
+      const blueIcon = new L.Icon({
+        iconUrl: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      });
+
+      const greenIcon = new L.Icon({
+        iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/img/marker-icon-2x-green.png',
+        shadowUrl: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      });
+
       // Variables
       let locations = [];
       let markers = [];
@@ -707,21 +726,44 @@
         welcomeScreen.style.display = "none";
         // After welcome screen is hidden, enable map interaction
         map.invalidateSize();
+        // Load locations after user enters name
+        loadLocations();
       });
 
-      // Load locations from localStorage
+      // Load locations from localStorage and filter by userName
       function loadLocations() {
         const storedLocations = localStorage.getItem("mapDestinations");
         if (storedLocations) {
-          locations = JSON.parse(storedLocations);
+          const allLocations = JSON.parse(storedLocations);
+          if (userName) {
+            // Filter locations by userName
+            locations = allLocations.filter(loc => loc.userName === userName);
+          } else {
+            locations = [];
+          }
+          updateLocationsList();
+          updateMapMarkers();
+        } else {
+          locations = [];
           updateLocationsList();
           updateMapMarkers();
         }
       }
 
-      // Save locations to localStorage
+      // Save locations to localStorage (all users)
       function saveLocations() {
-        localStorage.setItem("mapDestinations", JSON.stringify(locations));
+        // Load all locations from storage
+        let allLocations = [];
+        const storedLocations = localStorage.getItem("mapDestinations");
+        if (storedLocations) {
+          allLocations = JSON.parse(storedLocations);
+          // Remove current user's locations
+          allLocations = allLocations.filter(loc => loc.userName !== userName);
+        }
+        // Add current user's locations
+        const userLocations = locations.map(loc => ({...loc, userName}));
+        allLocations = allLocations.concat(userLocations);
+        localStorage.setItem("mapDestinations", JSON.stringify(allLocations));
       }
 
       // Calculate distance between two lat/lon points in km using Haversine formula
@@ -872,14 +914,15 @@
         return li;
       }
 
-      // Update map markers
+      // Update map markers with color based on visited status
       function updateMapMarkers() {
         markers.forEach(marker => map.removeLayer(marker));
         markers = [];
 
         locations.forEach(location => {
           if (location.latitude && location.longitude) {
-            const marker = L.marker([location.latitude, location.longitude])
+            const icon = location.visited ? greenIcon : blueIcon;
+            const marker = L.marker([location.latitude, location.longitude], {icon})
               .addTo(map)
               .bindPopup(`<b>${location.name}</b><br>${location.address || ""}`);
 
@@ -902,8 +945,8 @@
         selectedLocationId = location.id;
         document.getElementById("locationName").value = location.name || "";
         inputAddress.value = location.address || "";
-        inputLatitude.value = location.latitude !== undefined ? location.latitude : "";
-        inputLongitude.value = location.longitude !== undefined ? location.longitude : "";
+        inputLatitude.value = location.latitude !== undefined && location.latitude !== null ? location.latitude : "";
+        inputLongitude.value = location.longitude !== undefined && location.longitude !== null ? location.longitude : "";
         document.getElementById("locationDescription").value = location.description || "";
         visitedCheckbox.checked = location.visited || false;
 
@@ -1163,8 +1206,165 @@
         });
       }
 
-      // Load initial data and markers
-      loadLocations();
+      // Handle form submit for adding/editing location
+      locationForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = document.getElementById("locationName").value.trim();
+        if (!name) {
+          showToast("Name is required");
+          return;
+        }
+        const address = inputAddress.value.trim();
+        const latitude = inputLatitude.value ? parseFloat(inputLatitude.value) : null;
+        const longitude = inputLongitude.value ? parseFloat(inputLongitude.value) : null;
+        const description = document.getElementById("locationDescription").value.trim();
+        const visited = visitedCheckbox.checked;
+        const workingHours = {};
+        for (const day in workingHoursInputs) {
+          workingHours[day] = workingHoursInputs[day].value.trim();
+        }
+
+        if (selectedLocationId) {
+          // Edit existing location
+          const index = locations.findIndex(loc => loc.id === selectedLocationId);
+          if (index !== -1) {
+            locations[index] = {
+              ...locations[index],
+              name,
+              address,
+              latitude,
+              longitude,
+              description,
+              visited,
+              workingHours,
+              image: imageBase64,
+              userName: userName
+            };
+          }
+        } else {
+          // Add new location
+          const newLocation = {
+            id: crypto.randomUUID(),
+            name,
+            address,
+            latitude,
+            longitude,
+            description,
+            visited,
+            workingHours,
+            image: imageBase64,
+            userName: userName
+          };
+          locations.push(newLocation);
+        }
+
+        updateLocationsList();
+        updateMapMarkers();
+        closeModal(addLocationModal);
+      });
+
+      // Debounce helper
+      function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+      }
+
+      // Geocode address to coordinates using Nominatim
+      async function geocodeAddress(address) {
+        if (!address) return null;
+        try {
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+          const response = await fetch(url, {headers: {'Accept-Language': 'en'}});
+          if (!response.ok) return null;
+          const data = await response.json();
+          if (data && data.length > 0) {
+            return {
+              lat: parseFloat(data[0].lat),
+              lon: parseFloat(data[0].lon),
+              display_name: data[0].display_name
+            };
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      }
+
+      // Reverse geocode coordinates to address using Nominatim
+      async function reverseGeocode(lat, lon) {
+        if (lat == null || lon == null) return null;
+        try {
+          const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+          const response = await fetch(url, {headers: {'Accept-Language': 'en'}});
+          if (!response.ok) return null;
+          const data = await response.json();
+          if (data && data.display_name) {
+            return data.display_name;
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      }
+
+      // Flag to prevent infinite loops during autofill
+      let isUpdatingAddress = false;
+      let isUpdatingCoords = false;
+
+      // Debounced handler for address input changes
+      const handleAddressChange = debounce(async () => {
+        if (isUpdatingCoords) return; // Prevent loop
+        const address = inputAddress.value.trim();
+        if (!address) return;
+        isUpdatingAddress = true;
+        const result = await geocodeAddress(address);
+        if (result) {
+          // Only update if different to avoid cursor jump
+          if (inputLatitude.value !== String(result.lat)) inputLatitude.value = result.lat;
+          if (inputLongitude.value !== String(result.lon)) inputLongitude.value = result.lon;
+          // Optionally update address to formatted display_name
+          if (inputAddress.value !== result.display_name) inputAddress.value = result.display_name;
+        }
+        isUpdatingAddress = false;
+      }, 700);
+
+      // Debounced handler for coordinates input changes
+      const handleCoordsChange = debounce(async () => {
+        if (isUpdatingAddress) return; // Prevent loop
+        const latVal = inputLatitude.value.trim();
+        const lonVal = inputLongitude.value.trim();
+        if (!latVal || !lonVal) return;
+        const lat = parseFloat(latVal);
+        const lon = parseFloat(lonVal);
+        if (isNaN(lat) || isNaN(lon)) return;
+        isUpdatingCoords = true;
+        const address = await reverseGeocode(lat, lon);
+        if (address) {
+          if (inputAddress.value !== address) inputAddress.value = address;
+        }
+        isUpdatingCoords = false;
+      }, 700);
+
+      // Attach event listeners for autofill
+      inputAddress.addEventListener("input", () => {
+        handleAddressChange();
+      });
+
+      inputLatitude.addEventListener("input", () => {
+        handleCoordsChange();
+      });
+
+      inputLongitude.addEventListener("input", () => {
+        handleCoordsChange();
+      });
+
+      // Load initial data and markers only if userName is set
+      if (userName) {
+        loadLocations();
+      }
 
       // Save locations before unload
       window.addEventListener("beforeunload", () => {
