@@ -9,7 +9,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" rel="stylesheet"/>
   <style>
-    body {
+   body {
       padding-top: env(safe-area-inset-top);
       padding-bottom: env(safe-area-inset-bottom);
       margin: 0;
@@ -50,6 +50,12 @@
       -moz-osx-font-smoothing: grayscale;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
         Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     /* Adjust map to be below header */
     #map {
@@ -112,15 +118,19 @@
       align-items: center;
       padding: 0.75rem 1rem;
       border-bottom: 1px solid #e5e7eb; /* Tailwind gray-200 */
-      cursor: pointer;
+      cursor: grab;
       gap: 0.75rem;
       user-select: none;
+      background-color: white;
+      transition: background-color 0.2s ease;
+    }
+    .location-item:active {
+      cursor: grabbing;
+      background-color: #e0e7ff;
     }
     .location-item.dragging {
-      opacity: 0.5;
-    }
-    .location-item:hover {
-      background-color: #f3f4f6; /* Tailwind gray-100 */
+      opacity: 0.6;
+      background-color: #c7d2fe;
     }
     .location-item img {
       width: 48px;
@@ -150,9 +160,12 @@
     }
     .location-distance {
       font-size: 0.75rem;
-      color: #10b981; /* Tailwind green-500 */
+      color: #2563eb; /* Tailwind blue-600 */
       margin-top: 0.125rem;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 600;
     }
     .location-actions {
       flex-shrink: 0;
@@ -178,6 +191,20 @@
       height: 1.25rem;
       cursor: pointer;
       flex-shrink: 0;
+    }
+    /* Drag handle */
+    .drag-handle {
+      cursor: grab;
+      flex-shrink: 0;
+      color: #6b7280;
+      font-size: 1.25rem;
+      user-select: none;
+      padding: 0 0.5rem 0 0;
+      display: flex;
+      align-items: center;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
     }
     /* Chevron icon rotation */
     .chevron {
@@ -232,37 +259,10 @@
         right: 1.5rem;
       }
     }
-    /* Edit mode styles */
-    #editReorderButtons {
-      display: flex;
-      justify-content: flex-end;
-      gap: 0.5rem;
-      padding: 0.5rem 1rem 0 1rem;
+    /* Modal base styles */
+    .modal {
+      display: none;
     }
-    #editReorderButtons button {
-      font-weight: 600;
-      font-size: 0.875rem;
-      padding: 0.25rem 0.75rem;
-      border-radius: 0.375rem;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: background-color 0.2s ease, border-color 0.2s ease;
-    }
-    #editReorderButtons button#cancelReorder {
-      background-color: #e5e7eb;
-      color: #374151;
-    }
-    #editReorderButtons button#cancelReorder:hover {
-      background-color: #d1d5db;
-    }
-    #editReorderButtons button#saveReorder {
-      background-color: #2563eb;
-      color: white;
-    }
-    #editReorderButtons button#saveReorder:hover {
-      background-color: #1d4ed8;
-    }
-
     /* Welcome screen styles */
     #welcomeScreen {
       position: fixed;
@@ -356,60 +356,58 @@
  </head>
  <body>
   <!-- Welcome Screen -->
-  <div id="welcomeScreen" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle" aria-describedby="welcomeDesc">
-    <img src="assets/logo.png" alt="XPLR app logo" />
-    <h1 id="welcomeTitle">XPLR</h1>
-    <p id="welcomeDesc">Please enter your name to get started.</p>
-    <input type="text" id="nameInput" aria-label="Enter your name" placeholder="Your name" autocomplete="off" />
-    <button id="getStartedBtn" type="button" aria-label="Get started with XPLR app" disabled>Get Started</button>
+  <div aria-describedby="welcomeDesc" aria-labelledby="welcomeTitle" aria-modal="true" id="welcomeScreen" role="dialog">
+   <img alt="XPLR app logo" height="160" src="assets/logo.png" width="160"/>
+   <h1 id="welcomeTitle">
+    XPLR
+   </h1>
+   <p id="welcomeDesc">
+    Please enter your name to get started.
+   </p>
+   <input aria-label="Enter your name" autocomplete="off" id="nameInput" placeholder="Your name" type="text"/>
+   <button aria-label="Get started with XPLR app" disabled="" id="getStartedBtn" type="button">
+    Get Started
+   </button>
   </div>
-
-  <header id="appHeader" role="banner" aria-label="App title" class="hidden">XPLR</header>
-
-  <div id="map" aria-label="Map showing destinations" class="hidden"></div>
-
-  <div id="tabsContainer" role="tablist" aria-label="Destinations tabs" class="hidden">
-    <!-- My Destinations Tab -->
-    <section id="myDestinationsTab" class="tab-wrapper" role="tabpanel" aria-labelledby="myDestinationsHeader" aria-expanded="true">
-      <header id="myDestinationsHeader" class="tab-header" role="tab" tabindex="0" aria-controls="myDestinationsContent" aria-expanded="true">
-        <div class="flex items-center justify-between w-full">
-          <span>My Destinations</span>
-          <button id="editMyDestinationsBtn" aria-label="Edit My Destinations order" class="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 text-sm font-semibold">
-            Edit
-          </button>
-        </div>
-        <i id="myDestinationsChevron" class="fas fa-chevron-up chevron"></i>
-      </header>
-      <div id="myDestinationsContent" class="tab-content" tabindex="0">
-        <ul id="myDestinationsList" role="list" aria-label="My Destinations list"></ul>
-        <div id="myDestinationsEmpty" class="p-4 text-center text-gray-400 select-none">
-          No destinations yet. Tap + to add.
-        </div>
-      </div>
-    </section>
-
-    <!-- Explored Tab -->
-    <section id="exploredTab" class="tab-wrapper" role="tabpanel" aria-labelledby="exploredHeader" aria-expanded="true" style="margin-top: -0.5rem;">
-      <header id="exploredHeader" class="tab-header" role="tab" tabindex="0" aria-controls="exploredContent" aria-expanded="true">
-        <div class="flex items-center justify-between w-full">
-          <span>Explored</span>
-          <button id="editExploredBtn" aria-label="Edit Explored order" class="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 text-sm font-semibold">
-            Edit
-          </button>
-        </div>
-        <i id="exploredChevron" class="fas fa-chevron-up chevron"></i>
-      </header>
-      <div id="exploredContent" class="tab-content" tabindex="0">
-        <ul id="exploredList" role="list" aria-label="Explored destinations list"></ul>
-        <div id="exploredEmpty" class="p-4 text-center text-gray-400 select-none">
-          No explored destinations yet.
-        </div>
-      </div>
-    </section>
+  <header aria-label="App title" id="appHeader" role="banner">
+   XPLR
+  </header>
+  <div aria-label="Map showing destinations" id="map">
   </div>
-
+  <div aria-label="Destinations tabs" id="tabsContainer" role="tablist">
+   <!-- My Destinations Tab -->
+   <section aria-expanded="true" aria-labelledby="myDestinationsHeader" class="tab-wrapper" id="myDestinationsTab" role="tabpanel">
+    <header aria-controls="myDestinationsContent" aria-expanded="true" class="tab-header" id="myDestinationsHeader" role="tab" tabindex="0">
+     My Destinations
+     <i class="fas fa-chevron-up chevron" id="myDestinationsChevron">
+     </i>
+    </header>
+    <div class="tab-content" id="myDestinationsContent" tabindex="0">
+     <ul aria-label="My Destinations list" id="myDestinationsList" role="list">
+     </ul>
+     <div class="p-4 text-center text-gray-400 select-none" id="myDestinationsEmpty">
+      No destinations yet. Tap + to add.
+     </div>
+    </div>
+   </section>
+   <!-- Explored Tab -->
+   <section aria-expanded="true" aria-labelledby="exploredHeader" class="tab-wrapper" id="exploredTab" role="tabpanel" style="margin-top: -0.5rem;">
+    <header aria-controls="exploredContent" aria-expanded="true" class="tab-header" id="exploredHeader" role="tab" tabindex="0">
+     Explored
+     <i class="fas fa-chevron-up chevron" id="exploredChevron">
+     </i>
+    </header>
+    <div class="tab-content" id="exploredContent" tabindex="0">
+     <ul aria-label="Explored destinations list" id="exploredList" role="list">
+     </ul>
+     <div class="p-4 text-center text-gray-400 select-none" id="exploredEmpty">
+      No explored destinations yet.
+     </div>
+    </div>
+   </section>
+  </div>
   <!-- Add Location Modal -->
-  <div aria-labelledby="addLocationTitle" aria-modal="true" class="fixed inset-0 bg-black bg-opacity-50 hidden justify-center items-center z-50 p-4" id="addLocationModal" role="dialog">
+  <div aria-labelledby="addLocationTitle" aria-modal="true" class="fixed inset-0 bg-black bg-opacity-50 hidden justify-center items-center z-50 p-4 modal" id="addLocationModal" role="dialog">
    <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 flex flex-col">
     <header class="flex justify-between items-center border-b border-gray-300 pb-3 mb-4">
      <h3 class="text-lg font-semibold modal-title" id="addLocationTitle">
@@ -419,33 +417,33 @@
       ×
      </button>
     </header>
-    <form class="flex flex-col gap-4" id="locationForm" novalidate>
+    <form class="flex flex-col gap-4" id="locationForm">
      <div>
       <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationName">
        Name
-       <span class="text-red-500">*</span>
+       <span class="text-red-500">
+        *
+       </span>
       </label>
-      <input class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationName" placeholder="e.g. Favorite Cafe" required="" type="text" autocomplete="off"/>
+      <input class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationName" placeholder="e.g. Favorite Cafe" required="" type="text"/>
      </div>
      <div>
       <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationAddress">
        Address
       </label>
-      <input autocomplete="off" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationAddress" placeholder="e.g. 123 Main St, City, Country" type="text" />
+      <input autocomplete="off" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationAddress" placeholder="e.g. 123 Main St, City, Country" type="text"/>
      </div>
-     <div class="grid grid-cols-2 gap-4">
-       <div>
-        <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationLatitude">
-         Latitude
-        </label>
-        <input autocomplete="off" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationLatitude" max="90" min="-90" placeholder="e.g. 34.0522" step="any" type="number"/>
-       </div>
-       <div>
-        <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationLongitude">
-         Longitude
-        </label>
-        <input autocomplete="off" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationLongitude" max="180" min="-180" placeholder="e.g. -118.2437" step="any" type="number"/>
-       </div>
+     <div>
+      <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationLatitude">
+       Latitude
+      </label>
+      <input autocomplete="off" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationLatitude" max="90" min="-90" placeholder="e.g. 34.0522" step="any" type="number"/>
+     </div>
+     <div>
+      <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationLongitude">
+       Longitude
+      </label>
+      <input autocomplete="off" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="locationLongitude" max="180" min="-180" placeholder="e.g. -118.2437" step="any" type="number"/>
      </div>
      <div>
       <label class="block mb-1 font-medium text-gray-700 text-sm" for="locationDescription">
@@ -459,11 +457,15 @@
       </label>
       <div aria-label="Add image preview, click to upload" class="w-full h-36 border-2 border-dashed border-gray-300 rounded-lg flex flex-col justify-center items-center cursor-pointer overflow-hidden relative" id="imagePreview" role="button" tabindex="0">
        <div class="flex flex-col items-center text-gray-400 text-sm select-none" id="imagePreviewContent">
-        <i class="fas fa-image text-3xl mb-1"></i>
-        <span>Tap to add image</span>
+        <i class="fas fa-image text-3xl mb-1">
+        </i>
+        <span>
+         Tap to add image
+        </span>
        </div>
-       <button type="button" id="removeImageButton" class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity" aria-label="Remove image">
-        <i class="fas fa-times text-xs"></i>
+       <button aria-label="Remove image" class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity" id="removeImageButton" type="button">
+        <i class="fas fa-times text-xs">
+        </i>
        </button>
       </div>
       <input accept="image/*" aria-hidden="true" class="hidden" id="fileInput" type="file"/>
@@ -474,38 +476,54 @@
       </legend>
       <div class="grid grid-cols-1 gap-3 max-h-48 overflow-y-auto">
        <div class="flex items-center gap-2">
-        <label class="w-20 text-gray-700 text-sm" for="hoursMonday">Monday</label>
+        <label class="w-20 text-gray-700 text-sm" for="hoursMonday">
+         Monday
+        </label>
         <input class="flex-1 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="hoursMonday" placeholder="e.g. 09:00-17:00 or Closed" type="text"/>
        </div>
        <div class="flex items-center gap-2">
-        <label class="w-20 text-gray-700 text-sm" for="hoursTuesday">Tuesday</label>
+        <label class="w-20 text-gray-700 text-sm" for="hoursTuesday">
+         Tuesday
+        </label>
         <input class="flex-1 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="hoursTuesday" placeholder="e.g. 09:00-17:00 or Closed" type="text"/>
        </div>
        <div class="flex items-center gap-2">
-        <label class="w-20 text-gray-700 text-sm" for="hoursWednesday">Wednesday</label>
+        <label class="w-20 text-gray-700 text-sm" for="hoursWednesday">
+         Wednesday
+        </label>
         <input class="flex-1 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="hoursWednesday" placeholder="e.g. 09:00-17:00 or Closed" type="text"/>
        </div>
        <div class="flex items-center gap-2">
-        <label class="w-20 text-gray-700 text-sm" for="hoursThursday">Thursday</label>
+        <label class="w-20 text-gray-700 text-sm" for="hoursThursday">
+         Thursday
+        </label>
         <input class="flex-1 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="hoursThursday" placeholder="e.g. 09:00-17:00 or Closed" type="text"/>
        </div>
        <div class="flex items-center gap-2">
-        <label class="w-20 text-gray-700 text-sm" for="hoursFriday">Friday</label>
+        <label class="w-20 text-gray-700 text-sm" for="hoursFriday">
+         Friday
+        </label>
         <input class="flex-1 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="hoursFriday" placeholder="e.g. 09:00-17:00 or Closed" type="text"/>
        </div>
        <div class="flex items-center gap-2">
-        <label class="w-20 text-gray-700 text-sm" for="hoursSaturday">Saturday</label>
+        <label class="w-20 text-gray-700 text-sm" for="hoursSaturday">
+         Saturday
+        </label>
         <input class="flex-1 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="hoursSaturday" placeholder="e.g. 09:00-17:00 or Closed" type="text"/>
        </div>
        <div class="flex items-center gap-2">
-        <label class="w-20 text-gray-700 text-sm" for="hoursSunday">Sunday</label>
+        <label class="w-20 text-gray-700 text-sm" for="hoursSunday">
+         Sunday
+        </label>
         <input class="flex-1 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" id="hoursSunday" placeholder="e.g. 09:00-17:00 or Closed" type="text"/>
        </div>
       </div>
      </fieldset>
      <div class="flex items-center gap-2">
-      <input type="checkbox" id="visitedCheckbox" class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
-      <label for="visitedCheckbox" class="text-gray-700 text-sm select-none">Mark as visited</label>
+      <input class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" id="visitedCheckbox" type="checkbox"/>
+      <label class="text-gray-700 text-sm select-none" for="visitedCheckbox">
+       Mark as visited
+      </label>
      </div>
      <div class="flex justify-end gap-2 mt-2">
       <button class="bg-gray-200 text-gray-700 rounded-lg px-4 py-2 text-sm hover:bg-gray-300 transition" data-dismiss="modal" type="button">
@@ -518,9 +536,8 @@
     </form>
    </div>
   </div>
-
   <!-- Location Detail Modal -->
-  <div aria-labelledby="locationDetailTitle" aria-modal="true" class="fixed inset-0 bg-black bg-opacity-50 hidden justify-center items-center z-50 p-4" id="locationDetailModal" role="dialog">
+  <div aria-labelledby="locationDetailTitle" aria-modal="true" class="fixed inset-0 bg-black bg-opacity-50 hidden justify-center items-center z-50 p-4 modal" id="locationDetailModal" role="dialog">
    <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 flex flex-col">
     <header class="flex justify-between items-center border-b border-gray-300 pb-3 mb-4">
      <h3 class="text-lg font-semibold" id="locationDetailTitle">
@@ -552,81 +569,55 @@
     </fieldset>
     <div class="flex justify-between gap-2 mt-auto">
      <button class="flex items-center gap-2 bg-gray-200 text-blue-600 rounded-lg px-3 py-2 text-sm hover:bg-gray-300 transition" id="viewOnMapButton">
-      <i class="fas fa-map-marker-alt"></i>
+      <i class="fas fa-map-marker-alt">
+      </i>
       View on Map
      </button>
      <button class="flex items-center gap-2 bg-blue-600 text-white rounded-lg px-3 py-2 text-sm hover:bg-blue-700 transition" id="openInGoogleMapsButton">
-      <i class="fas fa-external-link-alt"></i>
+      <i class="fas fa-external-link-alt">
+      </i>
       Open in Maps
      </button>
     </div>
    </div>
   </div>
-
   <!-- Context Menu -->
   <div aria-label="Location options" class="absolute bg-white rounded-lg shadow-lg p-1 z-50 hidden w-44" id="menuPanel" role="menu">
    <div class="menu-item flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 text-gray-700" id="editMenuItem" role="menuitem" tabindex="0">
-    <i class="fas fa-edit"></i>
+    <i class="fas fa-edit">
+    </i>
     Edit
    </div>
    <div class="menu-item flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 text-red-600" id="deleteMenuItem" role="menuitem" tabindex="0">
-    <i class="fas fa-trash"></i>
+    <i class="fas fa-trash">
+    </i>
     Delete
    </div>
    <div class="menu-item flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 text-gray-700" id="viewOnMapMenuItem" role="menuitem" tabindex="0">
-    <i class="fas fa-map-marker-alt"></i>
+    <i class="fas fa-map-marker-alt">
+    </i>
     View on Map
    </div>
    <div class="menu-item flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 text-gray-700" id="openInGoogleMapsMenuItem" role="menuitem" tabindex="0">
-    <i class="fas fa-external-link-alt"></i>
+    <i class="fas fa-external-link-alt">
+    </i>
     Open in Maps
    </div>
   </div>
-
   <!-- Toast -->
-  <div aria-live="assertive" class="fixed bottom-16 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-80 text-white px-6 py-3 rounded-lg text-sm opacity-0 pointer-events-none transition-opacity z-50" id="toast" role="alert"></div>
-
+  <div aria-live="assertive" class="fixed bottom-16 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-80 text-white px-6 py-3 rounded-lg text-sm opacity-0 pointer-events-none transition-opacity z-50" id="toast" role="alert">
+  </div>
   <!-- Floating Action Button -->
-  <button aria-label="Add new destination" id="fab" class="fixed bottom-4 right-24 bg-blue-600 text-white w-14 h-14 rounded-full flex justify-center items-center shadow-lg hover:bg-blue-700 transition z-60 hidden">
-   <i class="fas fa-plus text-xl"></i>
+  <button aria-label="Add new destination" class="fixed bottom-4 right-24 bg-blue-600 text-white w-14 h-14 rounded-full flex justify-center items-center shadow-lg hover:bg-blue-700 transition z-60" id="fab">
+   <i class="fas fa-plus text-xl">
+   </i>
   </button>
-
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      // Elements
-      const welcomeScreen = document.getElementById("welcomeScreen");
-      const getStartedBtn = document.getElementById("getStartedBtn");
-      const nameInput = document.getElementById("nameInput");
-      const appHeader = document.getElementById("appHeader");
-      const mapEl = document.getElementById("map");
-      const tabsContainer = document.getElementById("tabsContainer");
-      const fab = document.getElementById("fab");
-
-      // Enable Get Started button only if name input is not empty
-      nameInput.addEventListener("input", () => {
-        const val = nameInput.value.trim();
-        if (val.length > 0) {
-          getStartedBtn.classList.add("enabled");
-          getStartedBtn.disabled = false;
-        } else {
-          getStartedBtn.classList.remove("enabled");
-          getStartedBtn.disabled = true;
-        }
-      });
-
-      // Show main app UI and hide welcome screen
-      function showApp(userName) {
-        welcomeScreen.style.display = "none";
-        appHeader.classList.remove("hidden");
-        mapEl.classList.remove("hidden");
-        tabsContainer.classList.remove("hidden");
-        fab.classList.remove("hidden");
-        appHeader.textContent = `Get ready to XPLR, ${userName}!`;
-      }
-
+   document.addEventListener("DOMContentLoaded", function () {
       // Initialize map
       const map = L.map("map").setView([34.0522, -118.2437], 13);
 
@@ -638,23 +629,556 @@
         }
       ).addTo(map);
 
-      // The rest of your app code here (locations, modals, etc.)...
-      // For brevity, omitted here but should be included as in your provided code.
+      // Variables
+      let locations = [];
+      let markers = [];
+      let selectedLocationId = null;
+      let imageBase64 = null;
+      let userName = null;
 
-      // On Get Started click
-      getStartedBtn.addEventListener("click", () => {
-        const userName = nameInput.value.trim();
-        if (userName.length === 0) return;
-        showApp(userName);
-      });
+      // DOM Elements
+      const myDestinationsTab = document.getElementById("myDestinationsTab");
+      const myDestinationsHeader = document.getElementById("myDestinationsHeader");
+      const myDestinationsChevron = document.getElementById("myDestinationsChevron");
+      const myDestinationsContent = document.getElementById("myDestinationsContent");
+      const myDestinationsList = document.getElementById("myDestinationsList");
+      const myDestinationsEmpty = document.getElementById("myDestinationsEmpty");
 
-      // Optional: allow Enter key on input to trigger Get Started if enabled
-      nameInput.addEventListener("keydown", (e) => {
-        if ((e.key === "Enter" || e.key === "NumpadEnter") && !getStartedBtn.disabled) {
-          e.preventDefault();
-          getStartedBtn.click();
+      const exploredTab = document.getElementById("exploredTab");
+      const exploredHeader = document.getElementById("exploredHeader");
+      const exploredChevron = document.getElementById("exploredChevron");
+      const exploredContent = document.getElementById("exploredContent");
+      const exploredList = document.getElementById("exploredList");
+      const exploredEmpty = document.getElementById("exploredEmpty");
+
+      const addLocationModal = document.getElementById("addLocationModal");
+      const locationDetailModal = document.getElementById("locationDetailModal");
+      const locationForm = document.getElementById("locationForm");
+      const imagePreview = document.getElementById("imagePreview");
+      const imagePreviewContent = document.getElementById("imagePreviewContent");
+      const removeImageButton = document.getElementById("removeImageButton");
+      const fileInput = document.getElementById("fileInput");
+      const fab = document.getElementById("fab");
+      const menuPanel = document.getElementById("menuPanel");
+      const toast = document.getElementById("toast");
+
+      // Inputs for coordinates and address
+      const inputAddress = document.getElementById("locationAddress");
+      const inputLatitude = document.getElementById("locationLatitude");
+      const inputLongitude = document.getElementById("locationLongitude");
+      const visitedCheckbox = document.getElementById("visitedCheckbox");
+
+      // Working hours inputs
+      const workingHoursInputs = {
+        Monday: document.getElementById("hoursMonday"),
+        Tuesday: document.getElementById("hoursTuesday"),
+        Wednesday: document.getElementById("hoursWednesday"),
+        Thursday: document.getElementById("hoursThursday"),
+        Friday: document.getElementById("hoursFriday"),
+        Saturday: document.getElementById("hoursSaturday"),
+        Sunday: document.getElementById("hoursSunday"),
+      };
+
+      // Welcome screen elements
+      const welcomeScreen = document.getElementById("welcomeScreen");
+      const nameInput = document.getElementById("nameInput");
+      const getStartedBtn = document.getElementById("getStartedBtn");
+      const appHeader = document.getElementById("appHeader");
+
+      // Enable/disable get started button based on input
+      nameInput.addEventListener("input", () => {
+        const val = nameInput.value.trim();
+        if (val.length > 0) {
+          getStartedBtn.disabled = false;
+          getStartedBtn.classList.add("enabled");
+          getStartedBtn.setAttribute("aria-disabled", "false");
+        } else {
+          getStartedBtn.disabled = true;
+          getStartedBtn.classList.remove("enabled");
+          getStartedBtn.setAttribute("aria-disabled", "true");
         }
       });
+
+      // Handle get started button click
+      getStartedBtn.addEventListener("click", () => {
+        const val = nameInput.value.trim();
+        if (val.length === 0) return;
+        userName = val;
+        appHeader.textContent = `Welcome ${userName}! Time to XPLR!`;
+        welcomeScreen.style.display = "none";
+        // After welcome screen is hidden, enable map interaction
+        map.invalidateSize();
+      });
+
+      // Load locations from localStorage
+      function loadLocations() {
+        const storedLocations = localStorage.getItem("mapDestinations");
+        if (storedLocations) {
+          locations = JSON.parse(storedLocations);
+          updateLocationsList();
+          updateMapMarkers();
+        }
+      }
+
+      // Save locations to localStorage
+      function saveLocations() {
+        localStorage.setItem("mapDestinations", JSON.stringify(locations));
+      }
+
+      // Calculate distance between two lat/lon points in km using Haversine formula
+      function calculateDistance(lat1, lon1, lat2, lon2) {
+        const toRad = (value) => (value * Math.PI) / 180;
+        const R = 6371; // Earth radius in km
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(lat1)) *
+            Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      }
+
+      // Update distances in the list and UI - distance from first spot only
+      function updateDistances() {
+        if (locations.length === 0) return;
+        const first = locations[0];
+        for (let i = 0; i < locations.length; i++) {
+          if (i === 0) {
+            locations[i].distanceFromFirst = null;
+          } else {
+            const curr = locations[i];
+            if (
+              first.latitude != null &&
+              first.longitude != null &&
+              curr.latitude != null &&
+              curr.longitude != null
+            ) {
+              locations[i].distanceFromFirst = calculateDistance(
+                first.latitude,
+                first.longitude,
+                curr.latitude,
+                curr.longitude
+              );
+            } else {
+              locations[i].distanceFromFirst = null;
+            }
+          }
+        }
+      }
+
+      // Update locations list UI
+      function updateLocationsList() {
+        updateDistances();
+        saveLocations();
+
+        // Clear lists
+        myDestinationsList.innerHTML = "";
+        exploredList.innerHTML = "";
+
+        // Filter locations
+        const unvisited = locations.filter(loc => !loc.visited);
+        const visited = locations.filter(loc => loc.visited);
+
+        // Populate My Destinations
+        if (unvisited.length === 0) {
+          myDestinationsEmpty.style.display = "block";
+        } else {
+          myDestinationsEmpty.style.display = "none";
+          unvisited.forEach(location => {
+            const li = createLocationListItem(location);
+            myDestinationsList.appendChild(li);
+          });
+        }
+
+        // Populate Explored
+        if (visited.length === 0) {
+          exploredEmpty.style.display = "block";
+        } else {
+          exploredEmpty.style.display = "none";
+          visited.forEach(location => {
+            const li = createLocationListItem(location);
+            exploredList.appendChild(li);
+          });
+        }
+
+        // Re-initialize Sortable for both lists
+        initSortable(myDestinationsList, false);
+        initSortable(exploredList, true);
+      }
+
+      // Create location list item element with distance from first spot and drag handle
+      function createLocationListItem(location) {
+        const li = document.createElement("li");
+        li.className = "location-item";
+        li.dataset.id = location.id;
+
+        const imageSrc = location.image || `https://placehold.co/48x48/png?text=${encodeURIComponent(location.name.charAt(0))}`;
+
+        // Distance text only if distanceFromFirst exists and location is not first
+        let distanceText = "";
+        if (location.distanceFromFirst != null) {
+          distanceText = `${location.distanceFromFirst.toFixed(1)} km away`;
+        }
+
+        li.innerHTML = `
+          <span class="drag-handle" aria-label="Drag to reorder" title="Drag to reorder" tabindex="0" role="button" aria-grabbed="false" aria-roledescription="sortable item handle">
+            <i class="fas fa-bars"></i>
+          </span>
+          <input type="checkbox" class="visited-checkbox" aria-label="Mark ${location.name} as visited" ${location.visited ? "checked" : ""} />
+          <img src="${imageSrc}" alt="Thumbnail of ${location.name}" />
+          <div class="location-info">
+            <div class="location-name">${location.name}</div>
+            <div class="location-address">${location.address || ""}</div>
+            ${distanceText ? `<div class="location-distance">${distanceText}</div>` : ""}
+          </div>
+          <div class="location-actions">
+            <button class="icon-button edit-button" aria-label="Edit ${location.name}"><i class="fas fa-edit"></i></button>
+            <button class="icon-button delete-button" aria-label="Delete ${location.name}"><i class="fas fa-trash"></i></button>
+          </div>
+        `;
+
+        // Checkbox event
+        li.querySelector(".visited-checkbox").addEventListener("click", e => {
+          e.stopPropagation();
+          location.visited = e.target.checked;
+          updateLocationsList();
+          updateMapMarkers();
+        });
+
+        // Edit button event
+        li.querySelector(".edit-button").addEventListener("click", e => {
+          e.stopPropagation();
+          openEditModal(location);
+        });
+
+        // Delete button event
+        li.querySelector(".delete-button").addEventListener("click", e => {
+          e.stopPropagation();
+          if (confirm(`Are you sure you want to delete "${location.name}"?`)) {
+            locations = locations.filter(loc => loc.id !== location.id);
+            updateLocationsList();
+            updateMapMarkers();
+          }
+        });
+
+        // Click on item opens details modal (except on drag handle)
+        li.addEventListener("click", (e) => {
+          if (e.target.closest(".drag-handle")) return;
+          showLocationDetails(location.id);
+        });
+
+        return li;
+      }
+
+      // Update map markers
+      function updateMapMarkers() {
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+
+        locations.forEach(location => {
+          if (location.latitude && location.longitude) {
+            const marker = L.marker([location.latitude, location.longitude])
+              .addTo(map)
+              .bindPopup(`<b>${location.name}</b><br>${location.address || ""}`);
+
+            marker.on("click", () => {
+              showLocationDetails(location.id);
+            });
+
+            markers.push(marker);
+          }
+        });
+
+        if (markers.length > 0) {
+          const group = new L.featureGroup(markers);
+          map.fitBounds(group.getBounds().pad(0.1));
+        }
+      }
+
+      // Open modal to edit or add location
+      function openEditModal(location) {
+        selectedLocationId = location.id;
+        document.getElementById("locationName").value = location.name || "";
+        inputAddress.value = location.address || "";
+        inputLatitude.value = location.latitude !== undefined ? location.latitude : "";
+        inputLongitude.value = location.longitude !== undefined ? location.longitude : "";
+        document.getElementById("locationDescription").value = location.description || "";
+        visitedCheckbox.checked = location.visited || false;
+
+        for (const day in workingHoursInputs) {
+          workingHoursInputs[day].value = (location.workingHours && location.workingHours[day]) || "";
+        }
+
+        if (location.image) {
+          imageBase64 = location.image;
+          imagePreviewContent.style.display = "none";
+          removeImageButton.style.opacity = "1";
+          if (!imagePreview.querySelector("img")) {
+            const img = document.createElement("img");
+            img.className = "w-full h-full object-cover rounded-lg";
+            img.alt = "Preview image";
+            imagePreview.appendChild(img);
+          }
+          imagePreview.querySelector("img").src = imageBase64;
+        } else {
+          resetImagePreview();
+        }
+
+        addLocationModal.querySelector(".modal-title").textContent = "Edit Destination";
+        addLocationModal.style.display = "flex";
+      }
+
+      // Show location details modal
+      function showLocationDetails(locationId) {
+        const location = locations.find(loc => loc.id === locationId);
+        if (!location) return;
+
+        document.getElementById("detailName").textContent = location.name;
+        const detailAddress = document.getElementById("detailAddress");
+        detailAddress.textContent = location.address || "No address provided";
+        detailAddress.href = location.latitude && location.longitude
+          ? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`
+          : "#";
+        document.getElementById("detailDescription").textContent = location.description || "No description";
+        document.getElementById("detailCoords").textContent = location.latitude && location.longitude
+          ? `Coordinates: ${location.latitude}, ${location.longitude}`
+          : "Coordinates not available";
+
+        const detailImage = document.getElementById("detailImage");
+        detailImage.src = location.image || `https://placehold.co/400x320/png?text=${encodeURIComponent(location.name.charAt(0))}`;
+        detailImage.alt = `Image of ${location.name}`;
+
+        const detailWorkingHours = document.getElementById("detailWorkingHours");
+        detailWorkingHours.innerHTML = "";
+        if (location.workingHours) {
+          for (const [day, hours] of Object.entries(location.workingHours)) {
+            const li = document.createElement("li");
+            li.textContent = `${day}: ${hours || "Closed"}`;
+            detailWorkingHours.appendChild(li);
+          }
+        } else {
+          const li = document.createElement("li");
+          li.textContent = "No working hours set";
+          detailWorkingHours.appendChild(li);
+        }
+
+        const mapsUrl = location.latitude && location.longitude
+          ? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`
+          : null;
+        document.getElementById("openInGoogleMapsButton").onclick = () => {
+          if (mapsUrl) window.open(mapsUrl, "_blank", "noopener");
+          else showToast("Coordinates not available");
+        };
+
+        document.getElementById("viewOnMapButton").onclick = () => {
+          if (location.latitude && location.longitude) {
+            map.setView([location.latitude, location.longitude], 16);
+            closeModal(locationDetailModal);
+          } else {
+            showToast("Coordinates not available");
+          }
+        };
+
+        locationDetailModal.style.display = "flex";
+        selectedLocationId = locationId;
+      }
+
+      // Show toast notification
+      function showToast(message) {
+        toast.textContent = message;
+        toast.style.opacity = 1;
+        toast.style.pointerEvents = "auto";
+
+        setTimeout(() => {
+          toast.style.opacity = 0;
+          toast.style.pointerEvents = "none";
+        }, 3000);
+      }
+
+      // Close modal
+      function closeModal(modal) {
+        modal.style.display = "none";
+        if (modal === addLocationModal) {
+          locationForm.reset();
+          imageBase64 = null;
+          resetImagePreview();
+          inputLatitude.value = "";
+          inputLongitude.value = "";
+          inputAddress.value = "";
+          visitedCheckbox.checked = false;
+          for (const day in workingHoursInputs) {
+            workingHoursInputs[day].value = "";
+          }
+          selectedLocationId = null;
+        }
+      }
+
+      // Reset image preview to default state
+      function resetImagePreview() {
+        imageBase64 = null;
+        imagePreviewContent.style.display = "flex";
+        removeImageButton.style.opacity = "0";
+        imagePreview.querySelector("img")?.remove();
+      }
+
+      // File input change handler
+      fileInput.addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.match("image.*")) {
+          showToast("Please select an image file");
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          imageBase64 = e.target.result;
+          imagePreviewContent.style.display = "none";
+          removeImageButton.style.opacity = "1";
+          if (!imagePreview.querySelector("img")) {
+            const img = document.createElement("img");
+            img.className = "w-full h-full object-cover rounded-lg";
+            img.alt = "Preview image";
+            imagePreview.appendChild(img);
+          }
+          imagePreview.querySelector("img").src = imageBase64;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      // Make image preview clickable to trigger file input
+      imagePreview.addEventListener("click", function () {
+        fileInput.click();
+      });
+      imagePreview.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          fileInput.click();
+        }
+      });
+
+      // Remove image button click handler
+      removeImageButton.addEventListener("click", function (e) {
+        e.stopPropagation();
+        resetImagePreview();
+        fileInput.value = "";
+      });
+
+      // Modal dismiss buttons
+      document.querySelectorAll('[data-dismiss="modal"]').forEach(button => {
+        button.addEventListener("click", () => {
+          const modal = button.closest(".modal") || button.closest("div[role='dialog']");
+          if (modal) closeModal(modal);
+        });
+      });
+
+      // Floating Action Button click to open add location modal
+      fab.addEventListener("click", () => {
+        selectedLocationId = null;
+        addLocationModal.style.display = "flex";
+        addLocationModal.querySelector(".modal-title").textContent = "Add New Destination";
+        locationForm.reset();
+        resetImagePreview();
+        for (const day in workingHoursInputs) {
+          workingHoursInputs[day].value = "";
+        }
+        visitedCheckbox.checked = false;
+        inputLatitude.value = "";
+        inputLongitude.value = "";
+        inputAddress.value = "";
+        imageBase64 = null;
+      });
+
+      // Toggle tab collapse
+      function toggleTab(tab, content, chevron) {
+        const expanded = tab.getAttribute("aria-expanded") === "true";
+        if (expanded) {
+          tab.setAttribute("aria-expanded", "false");
+          content.style.display = "none";
+          chevron.classList.add("rotated");
+        } else {
+          tab.setAttribute("aria-expanded", "true");
+          content.style.display = "block";
+          chevron.classList.remove("rotated");
+        }
+      }
+
+      // Initialize tabs expanded
+      myDestinationsContent.style.display = "block";
+      exploredContent.style.display = "block";
+
+      // Event listeners for tab headers
+      myDestinationsHeader.addEventListener("click", () => {
+        toggleTab(myDestinationsTab, myDestinationsContent, myDestinationsChevron);
+      });
+      exploredHeader.addEventListener("click", () => {
+        toggleTab(exploredTab, exploredContent, exploredChevron);
+      });
+
+      // Keyboard accessibility for tabs
+      myDestinationsHeader.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleTab(myDestinationsTab, myDestinationsContent, myDestinationsChevron);
+        }
+      });
+      exploredHeader.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleTab(exploredTab, exploredContent, exploredChevron);
+        }
+      });
+
+      // Initialize SortableJS on a list element
+      function initSortable(listElement, visitedList) {
+        if (!listElement) return;
+        if (listElement._sortable) {
+          listElement._sortable.destroy();
+        }
+        listElement._sortable = new Sortable(listElement, {
+          handle: '.drag-handle',
+          animation: 150,
+          ghostClass: 'dragging',
+          onEnd: function (evt) {
+            // Update locations array order based on new DOM order
+            const newOrderIds = Array.from(listElement.children).map(li => li.dataset.id);
+            // Filter locations by visited status
+            const filteredLocations = locations.filter(loc => loc.visited === visitedList);
+            // Other locations (not in this list)
+            const otherLocations = locations.filter(loc => loc.visited !== visitedList);
+            // Reorder filteredLocations according to newOrderIds
+            const reordered = [];
+            newOrderIds.forEach(id => {
+              const loc = filteredLocations.find(l => l.id === id);
+              if (loc) reordered.push(loc);
+            });
+            // Merge back
+            locations = visitedList ? otherLocations.concat(reordered) : reordered.concat(otherLocations);
+            updateLocationsList();
+            updateMapMarkers();
+          }
+        });
+      }
+
+      // Load initial data and markers
+      loadLocations();
+
+      // Save locations before unload
+      window.addEventListener("beforeunload", () => {
+        saveLocations();
+      });
+
+      // Register service worker for offline capabilities
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("/service-worker.js")
+          .then(() => console.log("Service Worker registered"))
+          .catch(error => console.log("Service Worker registration failed:", error));
+      }
     });
   </script>
  </body>
