@@ -722,7 +722,7 @@
         const val = nameInput.value.trim();
         if (val.length === 0) return;
         userName = val;
-        appHeader.textContent = `Welcome ${userName}! Time to XPLR!`;
+        appHeader.textContent = `${userName}, time to XPLR!`;
         welcomeScreen.style.display = "none";
         // After welcome screen is hidden, enable map interaction
         map.invalidateSize();
