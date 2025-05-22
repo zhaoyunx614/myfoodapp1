@@ -267,7 +267,7 @@
     #welcomeScreen {
       position: fixed;
       inset: 0;
-      background: #f7f5ef; /* more off-white */
+      background: #7c0a0a;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -287,16 +287,17 @@
     #welcomeScreen h1 {
       font-weight: 900;
       font-size: 3rem;
-      color: #0f2f4a;
+      color: #ffffee;
       margin-bottom: rem;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
         Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
       user-select: none;
     }
     #welcomeScreen p {
-      font-size: 1.755rem;
-      color: #4b5563;
-      max-width: 320px;
+      font-size: 1.7rem;
+      font-weight: 600;
+      color: #eef3fc;
+      max-width: 500px;
       text-align: center;
       margin-bottom: 1rem;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -305,23 +306,24 @@
     }
     #nameInput {
       width: 280px;
-      padding: 0.75rem 1rem;
+      padding: 0.8rem 1rem;
       font-size: 1.125rem;
-      border: 1.5px solid #cbd5e1; /* Tailwind gray-300 */
+      border: 2px solid #ffffff; /* Tailwind gray-300 */
       border-radius: 9999px;
       outline-offset: 2px;
       transition: border-color 0.3s ease, box-shadow 0.3s ease;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
         Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-      margin-bottom: 2rem;
+      margin-bottom: 1.2rem;
       user-select: text;
+      border-color: #ffffff;
     }
     #nameInput:focus {
-      border-color: #2563eb;
+      border-color: #ffffff;
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
     }
     #getStartedBtn {
-      background: linear-gradient(90deg, #2563eb, #1e40af);
+      background: linear-gradient(90deg, #103179, #1e40af);
       color: white;
       font-weight: 700;
       font-size: 1.125rem;
@@ -334,7 +336,7 @@
       user-select: none;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
         Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-      opacity: 0.5;
+      opacity: 0;
       pointer-events: none;
     }
     #getStartedBtn.enabled {
